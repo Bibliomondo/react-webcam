@@ -32,7 +32,8 @@ export default class Webcam extends Component {
       'image/png',
       'image/jpeg'
     ]),
-    className: PropTypes.string
+    className: PropTypes.string,
+	handleOnClick: PropTypes.func,
   };
 
   static mountedInstances = [];
@@ -205,6 +206,7 @@ export default class Webcam extends Component {
         src={this.state.src}
         muted={this.props.muted}
         className={this.props.className}
+		onClick={this.props.handleOnClick}
       />
     );
   }
