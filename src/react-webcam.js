@@ -1,12 +1,12 @@
 import React, { Component, PropTypes } from 'react';
 import { findDOMNode } from 'react-dom';
 
-function hasGetUserMedia() {
+export function hasGetUserMedia() {
   return !!(navigator.getUserMedia || navigator.webkitGetUserMedia ||
             navigator.mozGetUserMedia || navigator.msGetUserMedia);
 }
 
-export default class Webcam extends Component {
+export class Webcam extends Component {
   static defaultProps = {
     audio: true,
     height: 480,
