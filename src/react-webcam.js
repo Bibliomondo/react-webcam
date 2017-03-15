@@ -1,6 +1,8 @@
 import React, { Component, PropTypes } from 'react';
 import { findDOMNode } from 'react-dom';
 
+require('webrtc-adapter/out/adapter.js');
+
 export function hasGetUserMedia() {
   return !!(navigator.getUserMedia || navigator.webkitGetUserMedia ||
             navigator.mozGetUserMedia || navigator.msGetUserMedia);
@@ -11,11 +13,13 @@ export class Webcam extends Component {
     audio: true,
     height: 480,
     width: 640,
+	requireRearCamera: true,
     screenshotFormat: 'image/webp',
     onUserMedia: () => {}
   };
 
   static propTypes = {
+	videoIdTag: PropTypes.string.isRequired,
     audio: PropTypes.bool,
     muted: PropTypes.bool,
     onUserMedia: PropTypes.func,
@@ -32,6 +36,7 @@ export class Webcam extends Component {
       'image/png',
       'image/jpeg'
     ]),
+	requireRearCamera: PropTypes.bool,
     className: PropTypes.string,
 	handleOnClick: PropTypes.func,
   };
@@ -58,97 +63,42 @@ export class Webcam extends Component {
   }
 
   requestUserMedia() {
-    navigator.getUserMedia = navigator.getUserMedia ||
-                          navigator.webkitGetUserMedia ||
-                          navigator.mozGetUserMedia ||
-                          navigator.msGetUserMedia;
-
-    let sourceSelected = (audioSource, videoSource) => {
-      let constraints = {
-        video: {
-          optional: [{sourceId: videoSource}]
-        }
-      };
-
-      if (this.props.audio) {
-        constraints.audio = {
-          optional: [{sourceId: audioSource}]
-        };
-      }
-
-      navigator.getUserMedia(constraints, (stream) => {
-        Webcam.mountedInstances.forEach((instance) => instance.handleUserMedia(null, stream));
-      }, (e) => {
-        Webcam.mountedInstances.forEach((instance) => instance.handleUserMedia(e));
-      });
-    };
-
-    if (this.props.audioSource && this.props.videoSource) {
-      sourceSelected(this.props.audioSource, this.props.videoSource);
-    } else {
-      if ('mediaDevices' in navigator) {
-        navigator.mediaDevices.enumerateDevices().then((devices) => {
-          let audioSource = null;
-          let videoSource = null;
-
-          devices.forEach((device) => {
-            if (device.kind === 'audio') {
-              audioSource = device.id;
-            } else if (device.kind === 'video') {
-              videoSource = device.id;
-            }
-          });
-
-          sourceSelected(audioSource, videoSource);
-        })
-        .catch((error) => {
-          console.log(`${error.name}: ${error.message}`); // eslint-disable-line no-console
-        });
-      } else {
-        MediaStreamTrack.getSources((sources) => {
-          let audioSource = null;
-          let videoSource = null;
-
-          sources.forEach((source) => {
-            if (source.kind === 'audio') {
-              audioSource = source.id;
-            } else if (source.kind === 'video') {
-              videoSource = source.id;
-            }
-          });
-
-          sourceSelected(audioSource, videoSource);
-        });
-      }
-    }
-
+    
+    const facingMode = this.props.requireRearCamera ? "environment" : "user";
+	navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: facingMode } } }).then(function (stream) {	
+		Webcam.mountedInstances.forEach((instance) => instance.handleUserMedia(stream));
+	}).catch(function (error) {
+		Webcam.mountedInstances.forEach((instance) => instance.handleUserMediaError(error));
+	});
     Webcam.userMediaRequested = true;
   }
 
-  handleUserMedia(error, stream) {
-    if (error) {
-      this.setState({
-        hasUserMedia: false
-      });
-
-      return;
+  handleUserMediaError(error) {
+		this.setState({
+			hasUserMedia: false,
+		});
+		return;
     }
 
-    let src = window.URL.createObjectURL(stream);
+    handleUserMedia(stream) {
+        // createObjectURL is deprecated
+        document.getElementById(this.props.videoIdTag).srcObject = stream;
 
-    this.stream = stream;
-    this.setState({
-      hasUserMedia: true,
-      src
-    });
+        this.stream = stream;
+        this.setState({
+            hasUserMedia: true,
+        });
 
-    this.props.onUserMedia();
-  }
+        this.props.onUserMedia();
+    }
 
   componentWillUnmount() {
     let index = Webcam.mountedInstances.indexOf(this);
     Webcam.mountedInstances.splice(index, 1);
 
+	this.setState({
+            hasUserMedia: false,
+	});
     if (Webcam.mountedInstances.length === 0 && this.state.hasUserMedia) {
       if (this.stream.stop) {
         this.stream.stop();
@@ -200,10 +150,10 @@ export class Webcam extends Component {
   render() {
     return (
       <video
+		id={this.props.videoIdTag}
         autoPlay
         width={this.props.width}
         height={this.props.height}
-        src={this.state.src}
         muted={this.props.muted}
         className={this.props.className}
 		onClick={this.props.handleOnClick}
